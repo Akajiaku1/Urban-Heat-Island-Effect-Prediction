@@ -1,0 +1,49 @@
+import streamlit as st
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
+
+st.title("Urban Heat Island Effect Predictor")
+
+# Simulate synthetic data
+rows, cols = 100, 100
+np.random.seed(42)
+ndvi = np.random.uniform(0.1, 0.9, size=(rows, cols))
+ndbi = np.random.uniform(-0.5, 0.5, size=(rows, cols))
+lst = 30 + 5 * (1 - ndvi) + 2 * ndbi + np.random.normal(0, 0.5, size=(rows, cols))
+
+# Display NDVI and NDBI
+st.subheader("Synthetic NDVI and NDBI Layers")
+fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+ax[0].imshow(ndvi, cmap='Greens')
+ax[0].set_title("NDVI")
+ax[0].axis('off')
+ax[1].imshow(ndbi, cmap='gray')
+ax[1].set_title("NDBI")
+ax[1].axis('off')
+st.pyplot(fig)
+
+# Prepare data
+mask = np.isfinite(ndvi) & np.isfinite(ndbi) & np.isfinite(lst)
+X = np.stack([ndvi[mask], ndbi[mask]], axis=1)
+y = lst[mask]
+
+# Standardize and model training
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X_scaled, y)
+
+# Prediction
+X_full = np.stack([ndvi.ravel(), ndbi.ravel()], axis=1)
+X_full_scaled = scaler.transform(X_full)
+predicted_lst = model.predict(X_full_scaled).reshape(rows, cols)
+
+# Show result
+st.subheader("Predicted Land Surface Temperature (LST)")
+fig2, ax2 = plt.subplots()
+im = ax2.imshow(predicted_lst, cmap='hot')
+fig2.colorbar(im, ax=ax2, label="Predicted LST (°C)")
+ax2.axis('off')
+st.pyplot(fig2)
