@@ -1,0 +1,61 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from utils import read_raster, compute_ndvi, compute_ndbi
+import rasterio
+
+# Paths to raster files
+data_dir = "data"
+output_dir = "output"
+red_path = os.path.join(data_dir, "red.tif")
+nir_path = os.path.join(data_dir, "nir.tif")
+swir_path = os.path.join(data_dir, "swir.tif")
+lst_path = os.path.join(data_dir, "lst.tif")  # Land Surface Temperature
+
+# Load rasters
+red, profile = read_raster(red_path)
+nir, _ = read_raster(nir_path)
+swir, _ = read_raster(swir_path)
+lst, _ = read_raster(lst_path)
+
+# Compute indices
+ndvi = compute_ndvi(nir, red)
+ndbi = compute_ndbi(swir, nir)
+
+# Prepare features and labels
+mask = (np.isfinite(ndvi)) & (np.isfinite(ndbi)) & (np.isfinite(lst))
+X = np.stack([ndvi[mask], ndbi[mask]], axis=1)
+y = lst[mask]
+
+# Scale features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# Train Random Forest
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+score = model.score(X_test, y_test)
+print(f"Model R² score: {score:.2f}")
+
+# Predict over entire image
+X_full = np.stack([ndvi.ravel(), ndbi.ravel()], axis=1)
+X_full_scaled = scaler.transform(X_full)
+predictions = model.predict(X_full_scaled).reshape(ndvi.shape)
+
+# Save prediction raster
+profile.update(dtype=rasterio.float32, count=1)
+with rasterio.open(os.path.join(output_dir, "predicted_lst.tif"), 'w', **profile) as dst:
+    dst.write(predictions.astype(rasterio.float32), 1)
+
+# Visualize
+plt.imshow(predictions, cmap='hot')
+plt.colorbar(label="Predicted LST (°C)")
+plt.title("Urban Heat Island Effect Prediction")
+plt.axis('off')
+plt.show()
