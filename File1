@@ -1,0 +1,20 @@
+import numpy as np
+import rasterio
+
+def read_raster(path):
+    with rasterio.open(path) as src:
+        array = src.read(1)
+        profile = src.profile
+    return array, profile
+
+def compute_ndvi(nir, red):
+    nir = nir.astype(float)
+    red = red.astype(float)
+    ndvi = (nir - red) / (nir + red + 1e-10)
+    return np.clip(ndvi, -1, 1)
+
+def compute_ndbi(swir, nir):
+    swir = swir.astype(float)
+    nir = nir.astype(float)
+    ndbi = (swir - nir) / (swir + nir + 1e-10)
+    return np.clip(ndbi, -1, 1)
